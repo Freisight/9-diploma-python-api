@@ -1,21 +1,23 @@
 import requests
 from tqdm import tqdm
 from pprint import pprint
+import json
 
 with open('token.txt', 'r') as file_object:
     token_vk = file_object.read().strip()
 
 
 class Get_last_photo:
-    def __init__(self, token, owner):
+    def __init__(self, token, owner, album='profile'):
         self.token = token
         self.owner = owner
+        self.album = album
 
-    def get_links(self, count=5, album="profile"):
+    def get_links(self, count=5, album='profile'):
         all_links = {}
         URL = 'https://api.vk.com/method/photos.get'
         params = {'owner_id': self.owner,
-                    'album_id': album,
+                    'album_id': self.album,
                     'photo_sizes': 1,
                     'access_token': self.token,
                     'v':'5.131',
@@ -32,20 +34,19 @@ class Get_last_photo:
         elif count <= photo_count:
             print('В альбоме есть нужное количество изображений.')
 
-        # из запроса выдёргиваем все нужные фотографии и запихиваем их в словарь с ссылками и названием файла в виде лайков или даты
+
         for i in range(count):
             if all_photo['response']['items'][i]['likes']['count'] not in all_links:
-                all_links[all_photo['response']['items'][i]['likes']['count']] = all_photo['response']['items'][i]['sizes'][-1]['url']
+                all_links[all_photo['response']['items'][i]['likes']['count']] = [all_photo['response']['items'][i]['sizes'][-1]['url'], all_photo['response']['items'][i]['sizes'][-1]['type']]
             elif all_photo['response']['items'][i]['likes']['count'] in all_links:
-                all_links[str(all_photo['response']['items'][i]['likes']['count']) + '_' + str(all_photo['response']['items'][i]['date'])] = all_photo['response']['items'][i]['sizes'][-1]['url']
+                all_links[str(all_photo['response']['items'][i]['likes']['count']) + '_' + str(all_photo['response']['items'][i]['date'])] = [all_photo['response']['items'][i]['sizes'][-1]['url'], all_photo['response']['items'][i]['sizes'][-1]['type']]
 
         return all_links
 
 
     def upload_to_yandex(self, link_upload):
-        # получение токена сделать из файла
-        token_yandex = 'AQAAAAAKXC4TAADLW4SJJMLjPkXhv7Z6j0BjI6M'
-
+        token_yandex = input("Введите ваш токен с Полигона Яндекс: ")
+        json_file = []
         id = self.owner
 
         # адрес для создания новой папки
@@ -55,33 +56,84 @@ class Get_last_photo:
         upload = 'https://cloud-api.yandex.net:443/v1/disk/resources/upload'
         headers = {'Content-Type': 'application/json', 'Authorization': 'OAuth {}'.format(token_yandex)}
 
-        #  вот тут надо подставлять имя или id человеква и называть ею папку для загрузки файлов
-        requests.put(new_folder, headers=headers, params={'path' : 'disk:/id{}'.format(id)})
+        # создание папки на облачном сервере с ID пользователя
+        requests.put(new_folder, headers=headers, params={'path' : 'disk:/id{}_album{}'.format(id, self.album)})
 
         # надо как-то сюда новое имя вкорячить для папки и потом еще ее передавать от пользователя
         for name, link in tqdm(link_upload.items()):
-            r = requests.post(upload, headers=headers, params={'path' : 'disk:/id{}/{}'.format(id, str(name) + '.jpg'), 'url' : link})
+            requests.post(upload, headers=headers, params={'path' : 'disk:/id{}_album{}/{}'.format(id, self.album, str(name) + '.jpg'), 'url' : link[0]})
+            json_file.append({"file_name": name, "size": link[1]})
+
+        with open('id{}_al{}_json.txt'.format(id, self.album), 'w') as outfile:
+            json.dump(json_file, outfile)
+
+
 
     def get_links_and_upload_to_yandex(self, count=5, album="profile"):
         '''
         Метод класса соединяющий в себе сразу два метода - получения ссылок (get_links) и загрузки на яндекс (upload_to_yandex)
         Если не указан count, то возьмет по умолчанию 5 файлов для загрузки, если файлов меньше - сделает сколько есть.
+        Вторым параметром указывается ID альбома для загрузки. По умолчанию стоит 'profile', есть ещё 'wall' и...
         '''
         links = self.get_links(count, album)
         self.upload_to_yandex(links)
         
 
+command = {}
+
+def add_id():
+    get_id = input('Какой ID пользователя? ')
+    command['id'] = get_id
+    menu()
+
+def add_album():
+    get_album = input('Какой ID Альбома? ')
+    command['album'] = get_album
+    menu()
+
+def add_count():
+    get_count = int(input('Сколько фотографий скачиваем? '))
+    command['count'] = get_count
+    menu()
+
+def read_command():
+    pprint(command)
+    menu()
 
 
 
+
+def load_to_yandex():
+    new_object = Get_last_photo(token_vk, command['id'], command.get('album', 'profile'))
+    new_object.get_links_and_upload_to_yandex(command.get('count', 5))
+
+def menu():
+    user_input = input('Введите команду: ')
+    if user_input == 'id':
+        add_id()
+    elif user_input == 'album':
+        add_album()
+    elif user_input == 'count':
+        add_count()
+    elif user_input == 'command':
+        read_command()
+    elif user_input == 'upload':
+        load_to_yandex()
+
+
+
+menu()
+
+# ID юзера и альбома для теста
+# 1647573
+# 154979481
+
+
+# всякая фигня
 # создаём объект, указываем только токен и ID пользователя
-bulgakov = Get_last_photo(token_vk, 552934290)
-
-# указываем нужное количество ссылок и ID нужного альбома для получения ссылок, пол умолчанию идёт 'profile' - альбом фотографий пользователя.
-# links = bulgakov.get_links(7)
+# new_object = Get_last_photo(token_vk, '1647573', '154979481')
+# тестируем получение ссылок
+# links = new_object.get_links(5)
 # pprint(links)
-
-# загружаем на яндекс по полученным ссылкам
-# bulgakov.upload_to_yandex(links)
-
-bulgakov.get_links_and_upload_to_yandex(6)
+# вызываем метод для получения ссылок и заливки фотографий из указанного альбома
+# new_object.get_links_and_upload_to_yandex(2)
