@@ -3,10 +3,9 @@ from tqdm import tqdm
 from pprint import pprint
 import json
 import os
-from os import path
 
 # заменяем директорию на место размещения скрипта.
-dir = path.dirname(path.abspath(__file__))
+dir = os.path.dirname(os.path.abspath(__file__))
 os.chdir(dir)
 
 with open('token.txt', 'r') as file_object:
