@@ -124,7 +124,7 @@ def menu():
         'command': read_command,
         'upload': load_to_yandex
         }
-    action = input('Введите команду: ')
+    action = input('Введите команду: ').lower()
     get_action = actions.get(action, unknown_command)
     get_action()
 
